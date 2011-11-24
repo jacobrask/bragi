@@ -1,10 +1,12 @@
 {
-    "name": "bragi",
+    "name": "Bragi",
     "version": "0.0.1",
     "description": "UPnP AV / DLNA MediaServer.",
     "dependencies": {
-        "upnp": ">=0.0.1",
+        "coffee-script": "*",
+        "upnp-device": "*",
+        "optimist": "*"
     }, 
     "author": "Jacob Rask (http://jacobrask.net)",
-    "main": "index.coffee"
+    "main": "bragi.js"
 }
