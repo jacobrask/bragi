@@ -1,12 +1,22 @@
-upnp = require 'upnp'
-config =
-    app:
-        name: 'Bragi'
-        version: '0.0.1'
-        url: 'http://'
-    device:
-        type: 'MediaServer'
-        version: '1.0'
+fs = require 'fs'
+upnp = require 'upnp-server'
+Tag = require('taglib').Tag
 
-upnp.start config, ->
-    console.log 'Bragi running! :-)'
+mediaServer = upnp.createDevice 'MediaServer', 'Bragi', (err, device, msg) ->
+    throw err if err
+    device.start (err) ->
+        throw err if err
+        fs.readdir dir, (err, files) ->
+            for file in files
+                try
+                    t = new Tag(dir + file)
+                catch err
+                    console.log err
+                finally
+                    media.children.push(
+                        title: t.title
+                        location: dir + file
+                    )
+
+            device.addMedia 0, media, (err, id) ->
+                console.log id
