@@ -10,39 +10,16 @@ dir = argv.c
 async = require 'async'
 fs = require 'fs'
 mime = require 'mime'
+mmd = require 'musicmetadata'
 path = require 'path'
-{Tag} = require 'taglib'
-_ = require 'underscore'
 upnp = require 'upnp-device'
 
-# If all keys in array are the same, return the value,
-# otherwise return a fallback value (such as 'Various Artists').
-getAlbumKey = (arr, key, fallback) ->
-    unless arr[0]?[key]?
-        return fallback or undefined
-    if arr.every((el) -> el[key] is arr[0][key])
-        return arr[0][key]
-    else
-        return fallback or undefined
-
-mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
-
-mediaServer.on 'error', (e) -> throw e
-
-getItemType = (type) ->
-    mimeItemMap =
-        audio: 'audioItem.musicTrack'
-        image: 'imageItem'
-    mimeItemMap[type] or null
-
 getContainerType = (fileTypes) ->
-    mimeContainerMap =
-        audio: 'album.musicAlbum'
     maxVal = 0
     for key, val of fileTypes when val.length > maxVal
         maxVal = val
         type = key
-    mimeContainerMap[type] or null
+    type
 
 sortFiles = (dir, files, callback) ->
     sortedFiles = {}
@@ -61,61 +38,67 @@ sortFiles = (dir, files, callback) ->
                 callback (if err? then err else null)
         (err) -> callback err, sortedFiles
 
-makeContainer = (dir, sortedFiles) ->
+mimeContainerMap =
+    audio: 'album.musicAlbum'
+
+makeContainer = (dir, sortedFiles, callback) ->
+    contentType = getContainerType sortedFiles
     media =
         type: 'container'
-        instance: getContainerType sortedFiles
+        instance: mimeContainerMap[contentType]
         location: dir
-    data = []
-    for type, files of sortedFiles
-        if type is 'audio' and media.instance is 'album.musicAlbum'
-            data.push new Tag file for file in files
-        else if type is 'folder' and not media.instance?
-            media.creator = 'Unknown'
-            media.title = path.basename(dir).split('/')[0]
-
-    if data?.length > 0 and media.instance is 'album.musicAlbum'
-        media.creator = getAlbumKey data, 'artist', 'Various Artists'
-        media.title = getAlbumKey data, 'album', data[0].album
     
-    media
+    if contentType is 'audio'
+        stream = fs.createReadStream sortedFiles[contentType][0]
+        parser = new mmd stream
+        parser.on 'metadata', (data) ->
+            media.creator = data.albumartist[0]
+            media.title = data.album
+            callback null, media
+        parser.on 'done', (err) ->
+            console.error(err) if err?
+            stream.destroy()
+    else
+        media.creator = 'Unknown'
+        media.title = path.basename(dir).split('/')[0]
+        callback null, media
 
-makeItem = (type, file) ->
+mimeItemMap =
+    audio: 'audioItem.musicTrack'
+    image: 'imageItem'
+
+makeItem = (type, file, callback) ->
     media =
         type: 'item'
-        instance: getItemType type
+        instance: mimeItemMap[type]
         location: file
      switch type
         when 'audio'
-            try
-                data = new Tag file
-            catch e
-    if data?
-        switch media.instance
-            when 'audioItem.musicTrack'
-                media.creator = data.artist or 'Unknown Artist'
+            stream = fs.createReadStream file
+            parser = new mmd stream
+            parser.on 'metadata', (data) ->
+                media.creator = data.artist or 'Unknown'
                 media.title = data.title or 'Untitled'
                 media.album = data.album or 'Untitled'
-            else
-                media.creator = 'Unknown'
-                media.title = file
-    else
-        media.creator = 'Unknown'
-        media.title = file
-    media
+                callback null, media
+            parser.on 'done', (err) ->
+                console.error(err) if err?
+                stream.destroy()
+        else
+            media.creator = 'Unknown'
+            media.title = path.basename file, path.extname file
+            callback null, media
 
 addContainer = (parentId, dir, callback) ->
     fs.readdir dir, (err, files) ->
         sortFiles dir, files, (err, sortedFiles) ->
-            mediaServer.addMedia parentId,
-                makeContainer(dir, sortedFiles)
-                (err, id) ->
+            makeContainer dir, sortedFiles, (err, container) ->
+                mediaServer.addMedia parentId, container, (err, id) ->
                     add id, dir, sortedFiles, callback
 
 addItem = (parentId, type, file, callback) ->
-    mediaServer.addMedia parentId,
-        makeItem(type, file)
-        callback
+    makeItem type, file, (err, item) ->
+        mediaServer.addMedia parentId, item, callback
 
 add = (parentId, path, sortedFiles, callback) ->
     async.forEach Object.keys(sortedFiles),
@@ -127,14 +110,13 @@ add = (parentId, path, sortedFiles, callback) ->
                     else
                         addItem parentId, type, item, callback
                 callback
-        callback
+        (err) ->
+            callback null
 
+mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
+
+mediaServer.on 'error', (e) -> throw e
 
 mediaServer.on 'ready', ->
-    fs.readdir dir, (err, files) ->
-        # Determine root container type from its contents.
-        sortFiles dir, files, (err, sortedFiles) ->
-            mediaServer.addMedia 0, makeContainer(dir, sortedFiles), (err, cntId) ->
-                add cntId, dir, sortedFiles, (err, id) -> throw err if err?
-
+    addContainer 0, dir, (err) -> throw err if err?
     @announce()
