@@ -13,6 +13,7 @@ mime = require 'mime'
 mmd = require 'musicmetadata'
 path = require 'path'
 upnp = require 'upnp-device'
+mime.define 'audio/flac': ['flac']
 
 getContainerType = (fileTypes) ->
     maxVal = 0
@@ -39,20 +40,18 @@ sortFiles = (dir, files, callback) ->
         (err) -> callback err, sortedFiles
 
 mimeContainerMap =
-    audio: 'album.musicAlbum'
+    audio: 'object.container.album.musicAlbum'
 
 makeContainer = (dir, sortedFiles, callback) ->
     contentType = getContainerType sortedFiles
     media =
-        type: 'container'
-        instance: mimeContainerMap[contentType]
+        class: mimeContainerMap[contentType] or 'object.container'
         location: dir
     
     if contentType is 'audio'
-        stream = fs.createReadStream sortedFiles[contentType][0]
-        parser = new mmd stream
+        parser = new mmd stream = fs.createReadStream sortedFiles[contentType][0]
         parser.on 'metadata', (data) ->
-            media.creator = data.albumartist[0]
+            media.creator = data.albumartist?[0] or data.artist?[0] or 'Unknown'
             media.title = data.album
             callback null, media
         parser.on 'done', (err) ->
@@ -64,20 +63,19 @@ makeContainer = (dir, sortedFiles, callback) ->
         callback null, media
 
 mimeItemMap =
-    audio: 'audioItem.musicTrack'
-    image: 'imageItem'
+    audio: 'object.item.audioItem.musicTrack'
+    image: 'object.item.imageItem'
+    text: 'object.item.textItem'
 
 makeItem = (type, file, callback) ->
     media =
-        type: 'item'
-        instance: mimeItemMap[type]
+        class: mimeItemMap[type] or 'object.item'
         location: file
      switch type
         when 'audio'
-            stream = fs.createReadStream file
-            parser = new mmd stream
+            parser = new mmd stream = fs.createReadStream file
             parser.on 'metadata', (data) ->
-                media.creator = data.artist or 'Unknown'
+                media.creator = data.artist?[0] or 'Unknown'
                 media.title = data.title or 'Untitled'
                 media.album = data.album or 'Untitled'
                 callback null, media
