@@ -1,12 +1,29 @@
 {
-    "name": "Bragi",
-    "version": "0.0.1",
-    "description": "UPnP AV / DLNA MediaServer.",
-    "dependencies": {
-        "coffee-script": "*",
-        "upnp-device": "*",
-        "optimist": "*"
-    }, 
-    "author": "Jacob Rask (http://jacobrask.net)",
-    "main": "bragi.js"
+  "name": "bragi",
+  "version": "0.0.1",
+  "description": "Media server using UPnP",
+  "keywords": [ "upnp", "streaming", "multimedia" ],
+  "author": { "name": "Jacob Rask", "email": "jacob@jacobrask.net" },
+  "homepage": "https://github.com/jacobrask/bragi",
+  "bugs": "https://github.com/jacobrask/bragi/issues",
+  "bin": "./bragi.js",
+  "main": "./bragi.js",
+  "directories": { "lib": "./lib" },
+  "engines": { "node": "<= 0.4.12" },
+  "dependencies": {
+     "async": "*",
+     "coffee-script": "*",
+     "mime": "*",
+     "musicmetadata": "*",
+     "optimist": "*",
+     "upnp-device": "*"
+  },
+  "licenses": [ {
+    "type": "MIT",
+    "url": "http://github.com/jacobrask/bragi/raw/master/LICENSE"
+  } ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/jacobrask/bragi.git"
+  }
 }
