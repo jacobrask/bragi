@@ -42,6 +42,16 @@ sortFiles = (dir, files, callback) ->
 mimeContainerMap =
     audio: 'object.container.album.musicAlbum'
 
+# Parse tags using musicmediadata module
+parseTags = (file, cb) ->
+    stream = fs.createReadStream file
+    stream.on 'error', (err) -> console.log "#{err.message} - #{stream.path}"
+    parser = new mmd stream
+    parser.on 'metadata', (data) -> cb data
+    parser.on 'done', (err) ->
+        console.log "#{err.message} - #{stream.path}" if err?
+        stream.destroy()
+
 makeContainer = (dir, sortedFiles, callback) ->
     contentType = getContainerType sortedFiles
     media =
@@ -49,14 +59,16 @@ makeContainer = (dir, sortedFiles, callback) ->
         location: dir
     
     if contentType is 'audio'
-        parser = new mmd stream = fs.createReadStream sortedFiles[contentType][0]
-        parser.on 'metadata', (data) ->
-            media.creator = data.albumartist?[0] or data.artist?[0] or 'Unknown'
-            media.title = data.album
+        parseTags sortedFiles[contentType][0], (data) ->
+            media.creator = media.artist =
+                if data.albumartist.length > 0
+                    data.albumartist[0]
+                else if data.artist.length > 0
+                    data.artist
+                else
+                    'Unknown'
+            media.title = data.album or path.basename(dir).split('/')[0]
             callback null, media
-        parser.on 'done', (err) ->
-            console.error(err) if err?
-            stream.destroy()
     else
         media.creator = 'Unknown'
         media.title = path.basename(dir).split('/')[0]
@@ -73,15 +85,14 @@ makeItem = (type, file, callback) ->
         location: file
      switch type
         when 'audio'
-            parser = new mmd stream = fs.createReadStream file
-            parser.on 'metadata', (data) ->
-                media.creator = data.artist?[0] or 'Unknown'
+            parseTags file, (data) ->
+                media.creator = media.artist = data.artist?[0] or 'Unknown'
                 media.title = data.title or 'Untitled'
                 media.album = data.album or 'Untitled'
+                media.genre = data.genre?[0] if data.genre?[0]?
+                media.track = data.track?.no if data.track?.no > 0
+                media.date = data.year if data.year > 0
                 callback null, media
-            parser.on 'done', (err) ->
-                console.error(err) if err?
-                stream.destroy()
         else
             media.creator = 'Unknown'
             media.title = path.basename file, path.extname file
@@ -89,6 +100,8 @@ makeItem = (type, file, callback) ->
 
 addContainer = (parentId, dir, callback) ->
     fs.readdir dir, (err, files) ->
+        # Ignore hidden files.
+        files = files.filter (file) -> file[...1] isnt '.'
         sortFiles dir, files, (err, sortedFiles) ->
             makeContainer dir, sortedFiles, (err, container) ->
                 mediaServer.addMedia parentId, container, (err, id) ->
@@ -116,5 +129,4 @@ mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
 mediaServer.on 'error', (e) -> throw e
 
 mediaServer.on 'ready', ->
-    addContainer 0, dir, (err) -> throw err if err?
-    @announce()
+    addContainer 0, dir, (err, id) -> throw err if err?
