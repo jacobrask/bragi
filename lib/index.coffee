@@ -112,7 +112,7 @@ addItem = (parentId, type, file, callback) ->
         mediaServer.addMedia parentId, item, callback
 
 add = (parentId, path, sortedFiles, callback) ->
-    async.forEach Object.keys(sortedFiles),
+    async.forEachLimit Object.keys(sortedFiles), 5,
         (type, callback) ->
             async.forEach sortedFiles[type],
                 (item, callback) ->
