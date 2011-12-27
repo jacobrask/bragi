@@ -16,7 +16,8 @@
      "mime": "*",
      "musicmetadata": "*",
      "optimist": "*",
-     "upnp-device": "*"
+     "upnp-device": "*",
+     "zappa": "*"
   },
   "licenses": [ {
     "type": "MIT",

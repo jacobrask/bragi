@@ -1,5 +1,3 @@
-# vim: ts=2 sw=2 sts=2
-
 "use strict"
 
 async = require 'async'
@@ -7,23 +5,37 @@ fs = require 'fs'
 mime = require 'mime'
 mmd = require 'musicmetadata'
 path = require 'path'
+redis = require 'redis'
 upnp = require 'upnp-device'
+url = require 'url'
+
 mime.define 'audio/flac': ['flac']
 
 # Parse command line options
 argv = require('optimist')
-  .usage('Usage: $0 -c [directory]')
+  .usage('Usage: $0 -c [directory] -p [port]')
   .demand('c')
   .alias('c', 'content')
   .describe('c', 'Share the content of directory')
+  .alias('p', 'port')
+  .describe('p', 'Start web interface on port')
   .argv
 
 dir = argv.c
+port = argv.port or 3333
+hostname = '192.168.9.3'
+
+db = redis.createClient()
+db.on 'error', (err) -> throw err
+db.select 10
+db.flushdb()
 
 
 # Sort `files` after content type into separate arrays in an object.
 sortFiles = (dir, files, cb) ->
   sortedFiles = {}
+  # Ignore hidden files.
+  files = files.filter (file) -> file[...1] isnt '.'
   async.forEach files,
     (file, cb) ->
       fullPath = path.join dir, file
@@ -76,28 +88,43 @@ mimeMap =
 
 # Make UPnP objects.
 makeObject = (base, type, file, cb) ->
-  getDir = if base is 'container' then path.dirname else (p) -> p
-  media =
-    class: mimeMap[base][type] or "object.#{base}"
-    location: getDir file
-  filename = path.basename getDir file
-  if type is 'audio'
-    parseTags file, (data) ->
+  db.incr 'nextid', (err, dbId) ->
+    db.hset dbId, 'path', file
+    media = class: mimeMap[base][type] or "object.#{base}"
+    filename =
       if base is 'container'
-        media.creator = media.artist = data.albumartist or data.artist or 'Unknown'
-        media.title = data.album or filename
+        # `file` is a file in the directory/container, get the parent dir name.
+        path.basename path.dirname file
       else
-        media.creator = media.artist = data.artist or 'Unknown'
-        media.title = data.title or filename
-        media.album = data.album or 'Untitled'
-        media.genre = data.genre if data.genre?
-        media.track = data.track if data.track?
-        media.date = data.year if data.year?
-      cb null, media
-  else
-    media.creator = 'Unknown'
-    media.title = filename
-    cb null, media
+        path.basename file, path.extname file
+        media.location = url.format { protocol: 'http', pathname: "/res/#{dbId}", hostname, port }
+    if type is 'audio'
+      parseTags file, (data) ->
+        if base is 'container'
+          media.creator = media.artist = data.albumartist or data.artist or 'Unknown'
+          media.title = data.album or filename
+          cb null, media
+        else
+          media.creator = media.artist = data.artist or 'Unknown'
+          media.title = data.title or filename
+          media.album = data.album or 'Untitled'
+          media.genre = data.genre if data.genre?
+          media.track = data.track if data.track?
+          media.date = data.year if data.year?
+          media.contenttype = mime.lookup file
+          fs.stat file, (err, stats) ->
+            media.filesize = stats?.size or 0
+            cb null, media
+    else
+      media.creator = 'Unknown'
+      media.title = filename
+      if base is 'item'
+        media.contenttype = mime.lookup file
+        fs.stat file, (err, stats) ->
+          media.filesize = stats?.size or 0
+          cb null, media
+      else
+        cb null, media
 
 makeContainer = (sortedFiles, cb) ->
   contentType = getContainerType sortedFiles
@@ -109,8 +136,6 @@ makeItem = (type, file, cb) ->
 
 addContainer = (parentId, dir, cb) ->
   fs.readdir dir, (err, files) ->
-    # Ignore hidden files.
-    files = files.filter (file) -> file[...1] isnt '.'
     sortFiles dir, files, (err, sortedFiles) ->
       makeContainer sortedFiles, (err, container) ->
         mediaServer.addMedia parentId, container, (err, id) ->
@@ -137,4 +162,13 @@ mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
 mediaServer.on 'error', (e) -> throw e
 
 mediaServer.on 'ready', ->
-  addContainer 0, dir, (err, id) -> throw err if err?
+  fs.readdir dir, (err, files) ->
+    sortFiles dir, files, (err, sortedFiles) ->
+      add 0, dir, sortedFiles, ->
+        console.log "Added #{dir} to MediaServer."
+
+
+require('zappa') port, ->
+  @get '/res/:id': ->
+    db.hget @params.id, 'path', (err, path) =>
+      @response.sendfile path
