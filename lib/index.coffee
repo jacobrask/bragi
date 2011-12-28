@@ -159,17 +159,71 @@ add = (parentId, path, sortedFiles, cb) ->
 
 
 mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
-
 mediaServer.on 'error', (e) -> throw e
 
-mediaServer.on 'ready', ->
-  fs.readdir dir, (err, files) ->
-    sortFiles dir, files, (err, sortedFiles) ->
-      add 0, dir, sortedFiles, ->
-        console.log "Added #{dir} to MediaServer."
 
 
-require('zappa') port, ->
+require('zappa') ->
+  @use 'static'
+
+  @enable 'default layout', 'serve jquery'
+
+  @on 'hi2u': =>
+    console.log 'connected'
+
+  @on 'getFiles': ->
+    fs.readdir @data.path, (err, files) =>
+      files = files.filter (file) -> file[...1] isnt '.'
+      # Convert files array into an object suitable for jsTree
+      async.map files,
+        (file, cb) ->
+          fs.stat file, (err, stat) ->
+            cb null,
+              icon: if stat?.isDirectory() then 'folder' else 'file'
+              title: file
+        (err, res) =>
+          @emit 'gotFiles': { files: res }
+
+  mediaServer.on 'ready', =>
+    fs.readdir dir, (err, files) =>
+      sortFiles dir, files, (err, sortedFiles) =>
+        add 0, dir, sortedFiles, =>
+          console.log 'files loaded'
+
+  @client '/js/index.js': ->
+
+    @connect()
+    
+    @emit 'getFiles', { path: '/' }
+    
+    @on 'gotFiles': ->
+      files = for file in @data.files
+        { data: file }
+      console.log files
+
+      $ =>
+        $("#files").jstree(
+          json_data: { data: files }
+          plugins: [ 'json_data', 'ui' ]
+        ).bind 'select_node.jstree', (err, data) ->
+          console.log data.rslt.obj.data 'id'
+
+      @on 'filesLoaded': ->
+        console.log 'foo'
+
+
+  @view 'index': ->
+    @scripts = ['/socket.io/socket.io', '/zappa/jquery', '/zappa/zappa',
+                '/js/index', '/js/jquery.jstree' ]
+    h1 'Bragi'
+    h2 'Files'
+    div id: 'files'
+
+
+  @get '/': ->
+    @render 'index': { files: [ 'abc', 'def' ] }
+
+
   @get '/res/:id': ->
     db.hget @params.id, 'path', (err, path) =>
       # Transcode to mp3 using ffmpeg
