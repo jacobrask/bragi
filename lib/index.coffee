@@ -14,20 +14,18 @@ mime.define 'audio/flac': ['flac']
 
 # Parse command line options
 argv = require('optimist')
-  .usage('Usage: $0 -c [directory] -p [port]')
-  .demand('c')
-  .alias('c', 'content')
-  .describe('c', 'Share the content of directory')
+  .usage('Usage: $0 -p [port]')
   .alias('p', 'port')
   .describe('p', 'Start web interface on port')
   .argv
 
-dir = argv.c
 port = argv.port or 3333
 hostname = '192.168.9.3'
 
 db = redis.createClient()
-db.on 'error', (err) -> throw err
+db.on 'error', (err) ->
+  if err?
+    throw new Error "Database error, make sure redis is installed. #{err.message}"
 db.select 10
 db.flushdb()
 
@@ -157,7 +155,6 @@ add = (parentId, path, sortedFiles, cb) ->
       cb
     (err) -> cb null
 
-
 mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
 mediaServer.on 'error', (e) -> throw e
 
@@ -168,53 +165,70 @@ require('zappa') ->
 
   @enable 'default layout', 'serve jquery'
 
-  @on 'hi2u': =>
-    console.log 'connected'
-
   @on 'getFiles': ->
-    fs.readdir @data.path, (err, files) =>
-      files = files.filter (file) -> file[...1] isnt '.'
+    root = @data.path
+    root += '/' unless root[1...] is '/' or root is '/'
+    fs.readdir root, (err, files) =>
       # Convert files array into an object suitable for jsTree
-      async.map files,
+      async.filter files,
         (file, cb) ->
-          fs.stat file, (err, stat) ->
-            cb null,
-              icon: if stat?.isDirectory() then 'folder' else 'file'
+          return cb false if file[...1] is '.'
+          fs.stat root + file, (err, stat) ->
+            cb (if err? then false else stat.isDirectory())
+        (res) =>
+          res = res.sort()
+          files = for file in res
+            {
               title: file
-        (err, res) =>
-          @emit 'gotFiles': { files: res }
-
+              path: root + file
+            }
+          @emit 'gotFiles': { files, parentid: @data.parentid }
+  ###
   mediaServer.on 'ready', =>
     fs.readdir dir, (err, files) =>
       sortFiles dir, files, (err, sortedFiles) =>
         add 0, dir, sortedFiles, =>
           console.log 'files loaded'
-
+  ###
   @client '/js/index.js': ->
 
     @connect()
-    
-    @emit 'getFiles', { path: '/' }
+    @emit 'getFiles', {
+      parentid: 0
+      path: '/'
+    }
     
     @on 'gotFiles': ->
-      files = for file in @data.files
-        { data: file }
-      console.log files
-
       $ =>
-        $("#files").jstree(
-          json_data: { data: files }
-          plugins: [ 'json_data', 'ui' ]
-        ).bind 'select_node.jstree', (err, data) ->
-          console.log data.rslt.obj.data 'id'
+        $list = $ '<ul />'
+        id = @data.parentid
+        for file in @data.files
+          id = id + 1
+          do (id) ->
+            $list
+              .append $('<li />')
+                .attr('id', id)
+                .data('path', file.path)
+                .text file.title
+        $root =
+          if @data.parentid
+            $ "##{@data.parentid}"
+          else
+            $ '#files'
+        if $root.children().length is 0
+          $root.append $list
 
-      @on 'filesLoaded': ->
-        console.log 'foo'
+        $('#files').delegate 'li', 'click', (ev) =>
+          $el = $ ev.target
+          @emit 'getFiles', {
+            parentid: $el.attr 'id'
+            path: $el.data 'path'
+          }
 
 
   @view 'index': ->
     @scripts = ['/socket.io/socket.io', '/zappa/jquery', '/zappa/zappa',
-                '/js/index', '/js/jquery.jstree' ]
+                '/js/index' ]
     h1 'Bragi'
     h2 'Files'
     div id: 'files'

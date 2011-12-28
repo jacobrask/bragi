@@ -13,9 +13,11 @@
   "dependencies": {
      "async": "*",
      "coffee-script": "*",
+     "fluent-ffmpeg": "*",
      "mime": "*",
      "musicmetadata": "*",
      "optimist": "*",
+     "redis": "*",
      "upnp-device": "*",
      "zappa": "*"
   },
