@@ -1,6 +1,7 @@
 "use strict"
 
 async = require 'async'
+ffmpeg = require 'fluent-ffmpeg'
 fs = require 'fs'
 mime = require 'mime'
 mmd = require 'musicmetadata'
@@ -111,7 +112,7 @@ makeObject = (base, type, file, cb) ->
           media.genre = data.genre if data.genre?
           media.track = data.track if data.track?
           media.date = data.year if data.year?
-          media.contenttype = mime.lookup file
+          media.contenttype = 'audio/mpeg'
           fs.stat file, (err, stats) ->
             media.filesize = stats?.size or 0
             cb null, media
@@ -146,8 +147,8 @@ addItem = (parentId, type, file, cb) ->
     mediaServer.addMedia parentId, item, cb
 
 add = (parentId, path, sortedFiles, cb) ->
-  async.forEachLimit Object.keys(sortedFiles), 5,
-    (type, cb) -> async.forEach sortedFiles[type],
+  async.forEachSeries Object.keys(sortedFiles),
+    (type, cb) -> async.forEachLimit sortedFiles[type], 5,
       (item, cb) ->
         if type is 'folder'
           addContainer parentId, item, cb
@@ -171,4 +172,10 @@ mediaServer.on 'ready', ->
 require('zappa') port, ->
   @get '/res/:id': ->
     db.hget @params.id, 'path', (err, path) =>
-      @response.sendfile path
+      # Transcode to mp3 using ffmpeg
+      @response.contentType 'mp3'
+      prov = new ffmpeg(path)
+        .withAudioCodec('libmp3lame')
+        .toFormat('mp3')
+        .writeToStream @response, (ret, err) ->
+          console.log err if err?
