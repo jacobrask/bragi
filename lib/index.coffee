@@ -135,13 +135,20 @@ makeItem = (type, file, cb) ->
 
 addContainer = (parentId, dir, cb) ->
   fs.readdir dir, (err, files) ->
+    console.log err.message if err?
+    return cb null if err? or not files? or files?.length is 0
     sortFiles dir, files, (err, sortedFiles) ->
+      console.log err.message if err?
+      return cb null if err? or not sortedFiles? or Object.keys(sortedFiles).length is 0
       makeContainer sortedFiles, (err, container) ->
+        return cb null if err?
+        console.log container
         mediaServer.addMedia parentId, container, (err, id) ->
           add id, dir, sortedFiles, cb
 
 addItem = (parentId, type, file, cb) ->
   makeItem type, file, (err, item) ->
+    console.log item
     mediaServer.addMedia parentId, item, cb
 
 add = (parentId, path, sortedFiles, cb) ->
@@ -183,15 +190,17 @@ require('zappa') ->
               path: root + file
             }
           @emit 'gotFiles': { files, parentid: @data.parentid }
-  ###
-  mediaServer.on 'ready', =>
-    fs.readdir dir, (err, files) =>
-      sortFiles dir, files, (err, sortedFiles) =>
-        add 0, dir, sortedFiles, =>
-          console.log 'files loaded'
-  ###
-  @client '/js/index.js': ->
 
+  @on 'addPath': ->
+    dir = @data.path
+    fs.readdir dir, (err, files) ->
+      return unless files?
+      sortFiles dir, files, (err, sortedFiles) ->
+        add 0, dir, sortedFiles, ->
+          console.log 'files loaded'
+
+ 
+  @client '/js/index.js': ->
     @connect()
     @emit 'getFiles', {
       parentid: 0
@@ -209,28 +218,34 @@ require('zappa') ->
               .append $('<li />')
                 .attr('id', id)
                 .data('path', file.path)
-                .text file.title
+                .text("#{file.title} ")
+                .append $('<a />')
+                  .attr('href', '#')
+                  .data('path', file.path)
+                  .text('+')
         $root =
           if @data.parentid
             $ "##{@data.parentid}"
           else
             $ '#files'
-        if $root.children().length is 0
+        if $root.children('ul').length is 0
           $root.append $list
 
         $('#files').delegate 'li', 'click', (ev) =>
           $el = $ ev.target
-          @emit 'getFiles', {
-            parentid: $el.attr 'id'
-            path: $el.data 'path'
-          }
-
+          if ev.target.nodeName.toLowerCase() is 'li'
+            @emit 'getFiles', {
+              parentid: $el.attr 'id'
+              path: $el.data 'path'
+            }
+          else
+            @emit 'addPath', { path: $el.data 'path' }
 
   @view 'index': ->
     @scripts = ['/socket.io/socket.io', '/zappa/jquery', '/zappa/zappa',
                 '/js/index' ]
     h1 'Bragi'
-    h2 'Files'
+    h2 'Add files'
     div id: 'files'
 
 
