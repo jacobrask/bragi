@@ -1,0 +1,6 @@
+ul
+  each file in files
+    li
+      a(href="##{file.path}") +
+      input(type='checkbox')
+      =file.title

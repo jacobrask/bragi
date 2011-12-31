@@ -8,26 +8,17 @@ mmd = require 'musicmetadata'
 path = require 'path'
 redis = require 'redis'
 upnp = require 'upnp-device'
+web = require './web'
 url = require 'url'
-
 mime.define 'audio/flac': ['flac']
 
-# Parse command line options
-argv = require('optimist')
-  .usage('Usage: $0 -c [directory] -p [port]')
-  .demand('c')
-  .alias('c', 'content')
-  .describe('c', 'Share the content of directory')
-  .alias('p', 'port')
-  .describe('p', 'Start web interface on port')
-  .argv
-
-dir = argv.c
-port = argv.port or 3333
+port = 3000
 hostname = '192.168.9.3'
 
 db = redis.createClient()
-db.on 'error', (err) -> throw err
+db.on 'error', (err) ->
+  if err?
+    throw new Error "Database error, make sure redis is installed. #{err.message}"
 db.select 10
 db.flushdb()
 
@@ -158,16 +149,16 @@ add = (parentId, path, sortedFiles, cb) ->
     (err) -> cb null
 
 
-mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
+# mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
 
-mediaServer.on 'error', (e) -> throw e
+# mediaServer.on 'error', (e) -> throw e
 
+###
 mediaServer.on 'ready', ->
   fs.readdir dir, (err, files) ->
     sortFiles dir, files, (err, sortedFiles) ->
       add 0, dir, sortedFiles, ->
         console.log "Added #{dir} to MediaServer."
-
 
 require('zappa') port, ->
   @get '/res/:id': ->

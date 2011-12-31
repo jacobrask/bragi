@@ -13,11 +13,11 @@
   "dependencies": {
      "async": "*",
      "coffee-script": "*",
+     "jade": "*",
      "mime": "*",
      "musicmetadata": "*",
      "optimist": "*",
-     "upnp-device": "*",
-     "zappa": "*"
+     "upnp-device": "*"
   },
   "licenses": [ {
     "type": "MIT",
