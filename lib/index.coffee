@@ -1,12 +1,9 @@
 "use strict"
 
 async = require 'async'
-ffmpeg = require 'fluent-ffmpeg'
-fs = require 'fs'
 mime = require 'mime'
 mmd = require 'musicmetadata'
 path = require 'path'
-redis = require 'redis'
 upnp = require 'upnp-device'
 url = require 'url'
 mime.define 'audio/flac': ['flac']
@@ -16,13 +13,6 @@ files = require './files'
 
 port = 3000
 hostname = '192.168.9.3'
-
-db = redis.createClient()
-db.on 'error', (err) ->
-  if err?
-    throw new Error "Database error, make sure redis is installed. #{err.message}"
-db.select 10
-db.flushdb()
 
 
 # Get the key of the biggest array in an object.

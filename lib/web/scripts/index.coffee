@@ -1,3 +1,5 @@
+"use strict"
+
 socket = io.connect 'http://localhost'
 
 renderers = []

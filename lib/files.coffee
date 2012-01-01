@@ -1,3 +1,5 @@
+"use strict"
+
 async = require 'async'
 fs = require 'fs'
 mime = require 'mime'

@@ -1,3 +1,5 @@
+"use strict"
+
 async = require 'async'
 express = require 'express'
 socketio = require 'socket.io'
@@ -27,6 +29,11 @@ io.sockets.on 'connection', (socket) ->
   socket.on 'getDirectories', (root, cb) ->
     getDirData root, (err, dirs) ->
       cb { parent: root, dirs }
+
+  socket.on 'addPath', (root, cb) ->
+    getDirData root, (err, dirs) ->
+      cb { parent: root, dirs }
+
 
 app.get '/', (req, res) ->
   getDirData '/', (err, dirs) ->
