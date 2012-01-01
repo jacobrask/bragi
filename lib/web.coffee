@@ -5,16 +5,17 @@ express = require 'express'
 socketio = require 'socket.io'
 
 files = require './files'
-media = require './media'
 
-app = express.createServer()
-app.listen 3000
-io = socketio.listen app
-
+app = module.exports = express.createServer()
 app.configure ->
   app.use express.static "#{__dirname}/web"
   app.set 'view engine', 'jade'
   app.set 'views', "#{__dirname}/web/views"
+
+io = socketio.listen app
+io.configure ->
+  io.disable 'log'
+
 
 # Gets directories from file system and checks if they are in media database.
 getDirData = (root, cb) ->

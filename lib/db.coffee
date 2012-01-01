@@ -1,19 +1,19 @@
 "use strict"
 
-redis = require 'redis'
+{ Db, Connection, Server, BSONPure: ObjectID: ObjectID } = require 'mongodb'
 
-db = redis.createClient()
-db.on 'error', (err) ->
-  if err?
-    throw new Error "Database error, make sure redis is installed. #{err.message}"
-db.select 10
-db.flushdb()
+db = new Db 'bragi-mediaserver',
+       new Server 'localhost',
+       Connection.DEFAULT_PORT
 
+exports.start = (cb) -> db.open cb
 
-exports.getPath = (id, cb) ->
-  db.hget @params.id, 'path', (err, path) =>
-    cb path
-    
-exports.addPath = (id, cb) ->
-  db.hget @params.id, 'path', (err, path) =>
-    cb path
+exports.add = (obj, cb) ->
+  db.collection 'library', (err, collection) ->
+    return cb err if err?
+    collection.insert obj, cb
+
+exports.get = (filter, cb) ->
+  db.collection 'library', (err, collection) ->
+    return cb err if err?
+    collection.find(filter).toArray cb
