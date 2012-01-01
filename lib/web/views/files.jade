@@ -1,6 +1,6 @@
 ul
-  each file in files
+  each file in dirs
     li
       a(href="##{file.path}") +
-      input(type='checkbox')
+      input(type='checkbox', value="#{file.path}", checked=file.added)
       =file.title

@@ -8,9 +8,11 @@ mmd = require 'musicmetadata'
 path = require 'path'
 redis = require 'redis'
 upnp = require 'upnp-device'
-web = require './web'
 url = require 'url'
 mime.define 'audio/flac': ['flac']
+
+web = require './web'
+files = require './files'
 
 port = 3000
 hostname = '192.168.9.3'
@@ -21,24 +23,6 @@ db.on 'error', (err) ->
     throw new Error "Database error, make sure redis is installed. #{err.message}"
 db.select 10
 db.flushdb()
-
-
-# Sort `files` after content type into separate arrays in an object.
-sortFiles = (dir, files, cb) ->
-  sortedFiles = {}
-  # Ignore hidden files.
-  files = files.filter (file) -> file[...1] isnt '.'
-  async.forEach files,
-    (file, cb) ->
-      fullPath = path.join dir, file
-      fs.stat fullPath, (err, stat) ->
-        type =
-          if stat?.isDirectory() then 'folder'
-          else if stat?.isFile() then mime.lookup(file).split('/')[0]
-          else 'unknown'
-        (sortedFiles[type]?=[]).push fullPath
-        cb (if err? then err else null)
-    (err) -> cb err, sortedFiles
 
 
 # Get the key of the biggest array in an object.
@@ -127,11 +111,10 @@ makeItem = (type, file, cb) ->
 
 
 addContainer = (parentId, dir, cb) ->
-  fs.readdir dir, (err, files) ->
-    sortFiles dir, files, (err, sortedFiles) ->
-      makeContainer sortedFiles, (err, container) ->
-        mediaServer.addMedia parentId, container, (err, id) ->
-          add id, dir, sortedFiles, cb
+  files.getSortedFiles dir, (err, sortedFiles) ->
+    makeContainer sortedFiles, (err, container) ->
+      mediaServer.addMedia parentId, container, (err, id) ->
+        add id, dir, sortedFiles, cb
 
 addItem = (parentId, type, file, cb) ->
   makeItem type, file, (err, item) ->
@@ -149,24 +132,6 @@ add = (parentId, path, sortedFiles, cb) ->
     (err) -> cb null
 
 
-# mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
+mediaServer = upnp.createDevice 'MediaServer', 'Bragi'
 
-# mediaServer.on 'error', (e) -> throw e
-
-###
-mediaServer.on 'ready', ->
-  fs.readdir dir, (err, files) ->
-    sortFiles dir, files, (err, sortedFiles) ->
-      add 0, dir, sortedFiles, ->
-        console.log "Added #{dir} to MediaServer."
-
-require('zappa') port, ->
-  @get '/res/:id': ->
-    db.hget @params.id, 'path', (err, path) =>
-      # Transcode to mp3 using ffmpeg
-      @response.contentType 'mp3'
-      prov = new ffmpeg(path)
-        .withAudioCodec('libmp3lame')
-        .toFormat('mp3')
-        .writeToStream @response, (ret, err) ->
-          console.log err if err?
+mediaServer.on 'error', (e) -> throw e

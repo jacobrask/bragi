@@ -10,11 +10,18 @@ renderView = (name, data, cb) ->
 $ ->
   $('#files').on 'click', 'a', (ev) ->
     path = @hash.substring 1
-    socket.emit 'getFiles', { path }, addFiles
+    checked = no
+    socket.emit 'getDirectories', path, addDirs
     ev.preventDefault()
     ev.stopImmediatePropagation()
 
-addFiles = (data) ->
+  $('#files').on 'click', 'input', (ev) ->
+    $this = $ @
+    socket.emit 'addPath', { path: $this.val() }
+    $this.parent('li').find(':checkbox').prop('checked', true)
+    ev.stopImmediatePropagation()
+
+addDirs = (data) ->
   renderView 'files', data, (fileList) ->
     $("a[href='##{data.parent}']")
       .text('-')
