@@ -19,8 +19,7 @@ $ ->
 
   $('#files').on 'click', 'input', (ev) ->
     $this = $ @
-    socket.emit 'addPath', { path: $this.val() }
-    $this.parent('li').find(':checkbox').prop('checked', true)
+    socket.emit 'addPath', $this.val()
     ev.stopImmediatePropagation()
 
 addDirs = (data) ->

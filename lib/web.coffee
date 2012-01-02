@@ -2,9 +2,12 @@
 
 async = require 'async'
 express = require 'express'
+mime = require 'mime'
 socketio = require 'socket.io'
 
+db = require './db'
 files = require './files'
+media = require './media'
 
 app = module.exports = express.createServer()
 app.configure ->
@@ -32,21 +35,19 @@ io.sockets.on 'connection', (socket) ->
       cb { parent: root, dirs }
 
   socket.on 'addPath', (root, cb) ->
-    getDirData root, (err, dirs) ->
-      cb { parent: root, dirs }
-
+    media.addPath root, (err) ->
+      console.log err
 
 app.get '/', (req, res) ->
   getDirData '/', (err, dirs) ->
     res.render 'index', { dirs }
 
-
 # Render (and transcode) media resource with id `:id`.
 app.get '/res/:id', (req, res) ->
-  media.getPath req.params.id, (err, file) ->
+  db.getPath req.params.id, (err, file) ->
     res.contentType 'mp3'
-    if mime.lookup file is 'audio/mpeg'
-      res.sendFile file
+    if mime.lookup(file) is 'audio/mpeg'
+      res.sendfile file
     # Transcode to mp3 using ffmpeg.
     else
       new ffmpeg(path)

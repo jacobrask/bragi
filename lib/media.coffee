@@ -1,17 +1,14 @@
-# Core modules.
-fs = require 'fs'
+fs   = require 'fs'
 path = require 'path'
-url = require 'url'
+url  = require 'url'
 
-# npm modules.
 async = require 'async'
-mmd = require 'musicmetadata'
-upnp = require 'upnp-device'
+mime  = require 'mime'
+mmd   = require 'musicmetadata'
 
-# Internal modules.
-db = require './db'
+db    = require './db'
 files = require './files'
-_ = require './utils'
+_     = require './utils'
 
 # Parse tags using musicmetadata module.
 parseTags = (file, cb) ->
@@ -32,19 +29,28 @@ parseTags = (file, cb) ->
     stream.destroy()
 
 
-# Map content types to UPnP classes.
-mimeMap =
-  container:
-    audio: 'object.container.album.musicAlbum'
-    image: 'object.container.photoAlbum'
-  item:
-    audio: 'object.item.audioItem.musicTrack'
-    image: 'object.item.imageItem'
-    text:  'object.item.textItem'
-
-
 hostname = 'localhost'
 port = 3000
+
+exports.makeContainerObject = (baseClass, file, cb) ->
+  obj = {}
+  obj.class = "object.container#{if baseClass? then '.' + baseClass else ''}"
+
+  switch baseClass
+    when 'album.musicAlbum'
+      parseTags file, (data) ->
+        obj.artist = data.albumartist or data.artist or 'Unknown'
+        obj.title = data.album
+        cb null, obj
+    when 'person.musicArtist'
+      parseTags file, (data) ->
+        obj.title = data.albumartist or data.artist or 'Unknown'
+        cb null, obj
+    else
+      obj.title ?= path.basename path.dirname file
+      cb null, obj
+
+
 # Make UPnP objects.
 makeUpnpObject = (base, dbId, type, file, cb) ->
   media = class: mimeMap[base][type] or "object.#{base}"
@@ -121,4 +127,4 @@ add = (parentId, path, sortedFiles, cb) ->
         else
           addItem parentId, type, item, cb
       cb
-    (err) -> cb null
+    (err) -> cb err

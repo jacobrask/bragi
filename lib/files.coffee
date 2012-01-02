@@ -19,6 +19,7 @@ exports.getDirectories = (root, cb) ->
 
 
 # Return children as an object of arrays with files grouped by type.
+# Exlude files that aren't folders, audio, video or images.
 exports.getSortedFiles = (root, cb) ->
   sortFiles = (dir, files, cb) ->
     sortedFiles = {}
@@ -30,7 +31,8 @@ exports.getSortedFiles = (root, cb) ->
             if stat?.isDirectory() then 'folder'
             else if stat?.isFile() then mime.lookup(file).split('/')[0]
             else 'unknown'
-          (sortedFiles[type]?=[]).push fullPath
+          if type in [ 'audio', 'video', 'image' ]
+            (sortedFiles[type]?=[]).push fullPath
           cb (if err? then err else null)
       (err) -> cb err, sortedFiles
 
