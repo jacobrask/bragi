@@ -1,5 +1,7 @@
 "use strict"
 
+_ = require './utils'
+
 { Db, Connection, Server, BSONPure: { ObjectID } } = require 'mongodb'
 
 db = new Db 'bragi-mediaserver',
@@ -17,27 +19,34 @@ action = (collName, errback, callback) ->
     callback coll
 
 add = (collName, obj, cb) -> action collName, cb, (coll) ->
-  coll.insert obj, cb
+  coll.insert obj, safe: true, cb
 
-update = (collName, filter, obj, cb) -> action collName, cb, (coll) ->
-  coll.update filter, { $set: obj }, { safe: true }, cb
+update = (collName, filter, updateAction, cb) -> action collName, cb, (coll) ->
+  coll.update filter, updateAction, safe: true, cb
 
-get = (collName, filter, cb) -> action collName, cb, (coll) ->
+get = (collName, filter = {}, cb) -> action collName, cb, (coll) ->
   coll.find(filter).toArray cb
 
-exports.getPath = (id, cb) ->
-  get 'paths', { _id: new ObjectID id }, (err, arr) ->
-    return cb err if err?
-    cb null, arr[0].path
- 
-exports.getProperty = (filter, prop, cb) ->
+getProperty = (filter, prop, cb) ->
   action 'library', cb, (coll) ->
     (o = {})[prop] = 1
     coll.find(filter, o).toArray (err, obj) ->
-      cb err, obj?[0][prop]
+      cb err, obj?[0]?[prop]
+
+exports.getPath = (id, cb) ->
+  getProperty { _id: new ObjectID id.toString() }, 'path', cb
+
+exports.getProperty = (id, prop, cb) ->
+  getProperty { _id: new ObjectID id.toString() }, prop, cb
 
 exports.addToLibrary = (obj, cb) ->
-  add 'library', obj, cb
-  
-exports.updateProperty = (id, obj, cb) ->
-  update 'library', { _id: new ObjectID id.toString() }, obj, cb
+  action 'library', cb, (coll) ->
+    obj2 = _.clone obj
+    coll.findAndModify obj2, [['_id', 'asc']], { $set: obj2 }, { safe: on, upsert: on, new: yes }, (err, doc) ->
+      cb err, doc._id
+
+exports.set = (id, obj, cb) ->
+  update 'library', { _id: new ObjectID id.toString() }, { $set: obj }, cb
+
+exports.push = (id, obj, cb) ->
+  update 'library', { _id: new ObjectID id.toString() }, { $push: obj }, cb

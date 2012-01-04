@@ -31,7 +31,7 @@ exports.getSortedFiles = (root, cb) ->
             if stat?.isDirectory() then 'folder'
             else if stat?.isFile() then mime.lookup(file).split('/')[0]
             else 'unknown'
-          if type in [ 'audio', 'video', 'image' ]
+          if type in [ 'folder', 'audio', 'video', 'image' ]
             (sortedFiles[type]?=[]).push fullPath
           cb (if err? then err else null)
       (err) -> cb err, sortedFiles

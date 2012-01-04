@@ -1,3 +1,4 @@
+{ EventEmitter } = require 'events'
 fs   = require 'fs'
 path = require 'path'
 url  = require 'url'
@@ -5,10 +6,124 @@ url  = require 'url'
 async = require 'async'
 mime  = require 'mime'
 mmd   = require 'musicmetadata'
+upnp = require 'upnp-device'
 
 db    = require './db'
 files = require './files'
 _     = require './utils'
+
+
+ms = upnp.createDevice 'MediaServer', 'Express Test'
+
+addPath = exports.addPath = (root, cb) ->
+  files.getSortedFiles root, (err, sortedFiles) ->
+    type = _.getBiggestArray sortedFiles
+    add type, sortedFiles[type], cb unless type is 'folder'
+    if sortedFiles['folder']?.length
+      async.forEachSeries sortedFiles['folder'],
+        (root, cb) ->
+          addPath root, cb
+        (err) -> cb err
+
+add = (type, mediaFiles, cb) ->
+  if type is 'audio'
+    artist = new Artist mediaFiles
+    artist.on 'added', ->
+      album = new Album mediaFiles, artist
+      album.on 'added', ->
+        new Track file, album for file in mediaFiles
+        cb()
+  else
+    cb()
+
+hostname = '192.168.9.3'
+port = 3000
+
+class MediaObject extends EventEmitter
+
+  constructor: -> @
+
+  addToLibrary: (cb) ->
+    obj = _.clone @upnpObject
+    db.addToLibrary obj, (err, @id) =>
+      if err? then @emit 'error', err else cb()
+
+  addToMediaServer: (cb) ->
+    db.getProperty @id, 'upnpId', (err, upnpId) =>
+      if err? then return @emit 'error', err
+      if upnpId?
+        @upnpId = upnpId
+        return cb null
+      ms.addMedia @parent?.upnpId or 0, @upnpObject, (err, @upnpId) =>
+        if err? then return @emit 'error', err
+        db.set @id, { upnpId: @upnpId }, (err) =>
+          if err? then @emit 'error', err else cb()
+
+  addAsChild: (cb) ->
+    db.push @parent.id, { children: @id }, (err) =>
+      if err? then @emit 'error', err else cb()
+
+
+class Artist extends MediaObject
+
+  constructor: (@files) ->
+    @makeUpnpObject =>
+      @addToLibrary =>
+        @addToMediaServer =>
+          @emit 'added'
+    @
+
+  makeUpnpObject: (cb) ->
+    @upnpObject = class: 'object.container.person.musicArtist'
+    parseTags @files[0], (data) =>
+      @upnpObject.title = data.albumartist or data.artist or 'Unknown'
+      cb()
+
+
+class Album extends MediaObject
+
+  constructor: (@files, @parent) ->
+    @makeUpnpObject =>
+      @addToLibrary =>
+        @addToMediaServer =>
+          @addAsChild =>
+            @emit 'added'
+    @
+
+  makeUpnpObject: (cb) ->
+    @upnpObject = class: 'object.container.album.musicAlbum'
+    parseTags @files[0], (data) =>
+      @upnpObject.artist = data.albumartist or data.artist or 'Unknown'
+      @upnpObject.title = data.album or path.basename path.dirname @file
+      cb()
+
+
+class Track extends MediaObject
+
+  constructor: (@file, @parent) ->
+    @makeUpnpObject =>
+      @upnpObject.path = @file
+      @addToLibrary =>
+        @upnpObject.location = url.format { protocol: 'http', pathname: "/res/#{@id}", hostname, port }
+        @addToMediaServer =>
+          @addAsChild =>
+            @emit 'added'
+    @
+
+  makeUpnpObject: (cb) ->
+    @upnpObject = class: 'object.item.audioItem.musicTrack'
+    parseTags @file, (data) =>
+      @upnpObject.artist = data.artist or 'Unknown'
+      @upnpObject.title = data.title or path.basename @file, path.extname @file
+      @upnpObject.album = data.album or 'Untitled'
+      @upnpObject.genre = data.genre if data.genre?
+      @upnpObject.track = data.track if data.track?
+      @upnpObject.date = data.year if data.year?
+      @upnpObject.contenttype = 'audio/mpeg'
+      fs.stat @file, (err, stats) =>
+        @upnpObject.filesize = stats?.size or 0
+        cb()
+
 
 # Parse tags using musicmetadata module.
 parseTags = (file, cb) ->
@@ -27,104 +142,3 @@ parseTags = (file, cb) ->
   parser.on 'done', (err) ->
     console.log "#{err.message} - #{stream.path}" if err?
     stream.destroy()
-
-
-hostname = 'localhost'
-port = 3000
-
-exports.makeContainerObject = (baseClass, file, cb) ->
-  obj = {}
-  obj.class = "object.container#{if baseClass? then '.' + baseClass else ''}"
-
-  switch baseClass
-    when 'album.musicAlbum'
-      parseTags file, (data) ->
-        obj.artist = data.albumartist or data.artist or 'Unknown'
-        obj.title = data.album
-        cb null, obj
-    when 'person.musicArtist'
-      parseTags file, (data) ->
-        obj.title = data.albumartist or data.artist or 'Unknown'
-        cb null, obj
-    else
-      obj.title ?= path.basename path.dirname file
-      cb null, obj
-
-
-# Make UPnP objects.
-makeUpnpObject = (base, dbId, type, file, cb) ->
-  media = class: mimeMap[base][type] or "object.#{base}"
-  filename =
-    if base is 'container'
-      # `file` is a file in the directory/container, get the parent dir name.
-      path.basename path.dirname file
-    else
-      path.basename file, path.extname file
-      media.location = url.format { protocol: 'http', pathname: "/res/#{dbId}", hostname, port }
-  if type is 'audio'
-    parseTags file, (data) ->
-      if base is 'container'
-        media.creator = media.artist = data.albumartist or data.artist or 'Unknown'
-        media.title = data.album or filename
-        cb null, media
-      else
-        media.creator = media.artist = data.artist or 'Unknown'
-        media.title = data.title or filename
-        media.album = data.album or 'Untitled'
-        media.genre = data.genre if data.genre?
-        media.track = data.track if data.track?
-        media.date = data.year if data.year?
-        media.contenttype = 'audio/mpeg'
-        fs.stat file, (err, stats) ->
-          media.filesize = stats?.size or 0
-          cb null, media
-  else
-    media.creator = 'Unknown'
-    media.title = filename
-    if base is 'item'
-      media.contenttype = mime.lookup file
-      fs.stat file, (err, stats) ->
-        media.filesize = stats?.size or 0
-        cb null, media
-    else
-      cb null, media
-
-makeContainer = (dbId, sortedFiles, cb) ->
-  contentType = _.getBiggestArray sortedFiles
-  makeUpnpObject 'container', dbId, contentType, sortedFiles[contentType][0], cb
-
-makeItem = (dbId, type, file, cb) ->
-  makeUpnpObject 'item', dbId, type, file, cb
-
-
-makeStorageObject = (dir, cb) ->
-  db.add { path: dir }, (err, obj) ->
-    cb err, obj[0]._id
-
-addContainer = exports.addContainer = (parentId, dir, cb) ->
-  makeStorageObject dir, (err, dbId) ->
-    files.getSortedFiles dir, (err, sortedFiles) ->
-      makeContainer dbId, sortedFiles, (err, container) ->
-        console.log container
-        add 0, dir, sortedFiles, cb
-      ###
-      mediaServer.addMedia parentId, container, (err, id) ->
-        add id, dir, sortedFiles, cb
-      ###
-
-addItem = (parentId, type, file, cb) ->
-  makeStorageObject file, (err, dbId) ->
-    makeItem dbId, type, file, (err, item) ->
-      console.log item
-    #mediaServer.addMedia parentId, item, cb
-
-add = (parentId, path, sortedFiles, cb) ->
-  async.forEachSeries Object.keys(sortedFiles),
-    (type, cb) -> async.forEachLimit sortedFiles[type], 5,
-      (item, cb) ->
-        if type is 'folder'
-          addContainer parentId, item, cb
-        else
-          addItem parentId, type, item, cb
-      cb
-    (err) -> cb err
