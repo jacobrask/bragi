@@ -36,7 +36,7 @@ io.sockets.on 'connection', (socket) ->
 
   socket.on 'addPath', (root, cb) ->
     media.addPath root, (err) ->
-      console.log err
+      console.log err if err?
 
 app.get '/', (req, res) ->
   getDirData '/', (err, dirs) ->

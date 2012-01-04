@@ -11,9 +11,16 @@ renderView = (name, data, cb) ->
 
 $ ->
   $('#files').on 'click', 'a', (ev) ->
-    path = @hash.substring 1
-    checked = no
-    socket.emit 'getDirectories', path, addDirs
+    $this = $ @
+    if $this.hasClass 'open'
+      $this
+        .text('+')
+        .removeClass('open')
+          .nextAll('ul')
+          .remove()
+    else
+      path = @hash.substring 1
+      socket.emit 'getDirectories', path, addDirs
     ev.preventDefault()
     ev.stopImmediatePropagation()
 
@@ -26,5 +33,6 @@ addDirs = (data) ->
   renderView 'files', data, (fileList) ->
     $("a[href='##{data.parent}']")
       .text('-')
+      .addClass('open')
       .parent('li')
         .append fileList
