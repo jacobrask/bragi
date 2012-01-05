@@ -26,7 +26,12 @@ $ ->
 
   $('#files').on 'click', 'input', (ev) ->
     $this = $ @
-    socket.emit 'addPath', $this.val()
+    checked = $this.prop 'checked'
+    $this.nextAll('ul').find('input').prop 'checked', checked
+    if checked
+      socket.emit 'addPath', $this.val()
+    else
+      socket.emit 'removePath', $this.val()
     ev.stopImmediatePropagation()
 
 addDirs = (data) ->

@@ -25,8 +25,9 @@ getDirData = (root, cb) ->
   files.getDirectories root, (err, results) ->
     async.map results,
       (dir, cb) ->
-        dir.added = no
-        cb null, dir
+        db.pathExists dir.path, (err, exists) ->
+          dir.exists = exists
+          cb null, dir
       cb
 
 io.sockets.on 'connection', (socket) ->

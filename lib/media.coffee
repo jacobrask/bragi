@@ -16,14 +16,15 @@ _     = require './utils'
 ms = upnp.createDevice 'MediaServer', 'Express Test'
 
 addPath = exports.addPath = (root, cb) ->
-  files.getSortedFiles root, (err, sortedFiles) ->
-    type = _.getBiggestArray sortedFiles
-    add type, sortedFiles[type], cb unless type is 'folder'
-    if sortedFiles['folder']?.length
-      async.forEachSeries sortedFiles['folder'],
-        (root, cb) ->
-          addPath root, cb
-        (err) -> cb err
+  db.addPath root, (err) ->
+    files.getSortedFiles root, (err, sortedFiles) ->
+      type = _.getBiggestArray sortedFiles
+      add type, sortedFiles[type], cb unless type is 'folder'
+      if sortedFiles['folder']?.length
+        async.forEachSeries sortedFiles['folder'],
+          (dirPath, cb) ->
+            addPath dirPath, cb
+          (err) -> cb err
 
 add = (type, mediaFiles, cb) ->
   if type is 'audio'

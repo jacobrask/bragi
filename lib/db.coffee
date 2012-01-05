@@ -33,6 +33,9 @@ getProperty = (filter, prop, cb) ->
     coll.find(filter, o).toArray (err, obj) ->
       cb err, obj?[0]?[prop]
 
+exports.addPath = (path, cb) ->
+  add 'paths', { path }, cb
+
 exports.getPath = (id, cb) ->
   getProperty { _id: new ObjectID id.toString() }, 'path', cb
 
@@ -50,3 +53,8 @@ exports.set = (id, obj, cb) ->
 
 exports.push = (id, obj, cb) ->
   update 'library', { _id: new ObjectID id.toString() }, { $push: obj }, cb
+
+exports.pathExists = (path, cb) ->
+  action 'paths', cb, (coll) ->
+    coll.count { path }, (err, count) ->
+      cb err, count > 0

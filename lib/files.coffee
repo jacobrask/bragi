@@ -11,11 +11,11 @@ exports.getDirectories = (root, cb) ->
     async.filter files,
       (file, cb) ->
         return cb false if file[...1] is '.'
-        fs.stat root + file, (err, stat) ->
+        fs.stat path.join(root, file), (err, stat) ->
           cb (if err? then false else stat.isDirectory())
       (res) ->
         res = res.sort()
-        cb null, ({ title: file, path: root + file + '/' } for file in res)
+        cb null, ({ title: file, path: path.join(root, file) } for file in res)
 
 
 # Return children as an object of arrays with files grouped by type.
