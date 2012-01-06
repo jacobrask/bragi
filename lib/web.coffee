@@ -1,6 +1,5 @@
 "use strict"
 
-async = require 'async'
 express = require 'express'
 mime = require 'mime'
 socketio = require 'socket.io'
@@ -8,6 +7,7 @@ socketio = require 'socket.io'
 db = require './db'
 files = require './files'
 media = require './media'
+_ = require './utils'
 
 app = module.exports = express.createServer()
 app.configure ->
@@ -23,7 +23,7 @@ io.configure ->
 # Gets directories from file system and checks if they are in media database.
 getDirData = (root, cb) ->
   files.getDirectories root, (err, results) ->
-    async.map results,
+    _.async.map results,
       (dir, cb) ->
         db.pathExists dir.path, (err, exists) ->
           dir.exists = exists

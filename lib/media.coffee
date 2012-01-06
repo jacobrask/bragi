@@ -3,7 +3,6 @@ fs   = require 'fs'
 path = require 'path'
 url  = require 'url'
 
-async = require 'async'
 mime  = require 'mime'
 mmd   = require 'musicmetadata'
 upnp = require 'upnp-device'

@@ -1,7 +1,5 @@
 "use strict"
 
-async = require 'async'
-
 media = require './media'
 _ = require './utils'
 
@@ -17,11 +15,13 @@ exports.init = (cb = ->) ->
     # Drop library and then rebuild it by scanning `paths`.
     action 'library', cb, (coll) ->
       coll.drop (err, res) ->
+        console.log err.message if err?
         get 'paths', {}, (err, docs) ->
+          console.log err.message if err?
           # Call back but continue adding media in the background.
           cb err
           if docs?.length > 0
-            async.forEachSeries docs.filter((doc) -> doc.path?),
+            _.async.forEachSeries docs.filter((doc) -> doc.path?),
               (doc, cb) -> media.addPath doc.path, cb
               (err) -> console.log err.message if err?
 

@@ -1,6 +1,5 @@
 "use strict"
 
-async = require 'async'
 fs = require 'fs'
 mime = require 'mime'
 path = require 'path'
@@ -10,7 +9,7 @@ _ = require './utils'
 # Return non-hidden child directories of root as an array of objects.
 getDirectories = exports.getDirectories = (root, cb) ->
   fs.readdir root, (err, files) ->
-    async.filter files,
+    _.async.filter files,
       (file, cb) ->
         return cb false if file[...1] is '.'
         fs.stat path.join(root, file), (err, stat) ->
@@ -24,7 +23,7 @@ getDirectories = exports.getDirectories = (root, cb) ->
 traverse = exports.traverse = (root, iterator, cb) ->
   iterator root, (err) ->
     getDirectories root, (err, dirs) ->
-      async.forEachSeries dirs,
+      _.async.forEachSeries dirs,
         (dir, cb) ->
           iterator dir.path, (err) ->
             traverse dir.path, iterator, cb
@@ -36,7 +35,7 @@ traverse = exports.traverse = (root, iterator, cb) ->
 exports.getSortedFiles = (root, cb) ->
   sortFiles = (dir, files, cb) ->
     sortedFiles = {}
-    async.forEach files,
+    _.async.forEach files,
       (file, cb) ->
         fullPath = path.join dir, file
         fs.stat fullPath, (err, stat) ->
