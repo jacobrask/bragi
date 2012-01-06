@@ -13,18 +13,14 @@ files = require './files'
 _     = require './utils'
 
 
-ms = upnp.createDevice 'MediaServer', 'Express Test'
+ms = upnp.createDevice 'MediaServer', 'Bragi'
 
 addPath = exports.addPath = (root, cb) ->
-  db.addPath root, (err) ->
-    files.getSortedFiles root, (err, sortedFiles) ->
-      type = _.getBiggestArray sortedFiles
-      add type, sortedFiles[type], cb unless type is 'folder'
-      if sortedFiles['folder']?.length
-        async.forEachSeries sortedFiles['folder'],
-          (dirPath, cb) ->
-            addPath dirPath, cb
-          (err) -> cb err
+  files.getSortedFiles root, (err, sortedFiles) ->
+    return cb err if err?
+    type = _.getBiggestArray sortedFiles
+    add type, sortedFiles[type], cb
+
 
 add = (type, mediaFiles, cb) ->
   if type is 'audio'
@@ -33,9 +29,9 @@ add = (type, mediaFiles, cb) ->
       album = new Album mediaFiles, artist
       album.on 'added', ->
         new Track file, album for file in mediaFiles
-        cb()
+        cb null
   else
-    cb()
+    cb null
 
 hostname = '192.168.9.3'
 port = 3000
@@ -115,6 +111,7 @@ class Track extends MediaObject
     @upnpObject = class: 'object.item.audioItem.musicTrack'
     parseTags @file, (data) =>
       @upnpObject.artist = data.artist or 'Unknown'
+      @upnpObject.creator = data.artist or 'Unknown'
       @upnpObject.title = data.title or path.basename @file, path.extname @file
       @upnpObject.album = data.album or 'Untitled'
       @upnpObject.genre = data.genre if data.genre?

@@ -36,8 +36,11 @@ io.sockets.on 'connection', (socket) ->
       cb { parent: root, dirs }
 
   socket.on 'addPath', (root, cb) ->
-    media.addPath root, (err) ->
-      console.log err if err?
+    files.traverse root,
+      (dir, cb) ->
+        db.addPath dir, (err) ->
+          media.addPath dir, cb
+      (err) -> console.log err.message if err?
 
 app.get '/', (req, res) ->
   getDirData '/', (err, dirs) ->
@@ -46,13 +49,17 @@ app.get '/', (req, res) ->
 # Render (and transcode) media resource with id `:id`.
 app.get '/res/:id', (req, res) ->
   db.getPath req.params.id, (err, file) ->
-    res.contentType 'mp3'
-    if mime.lookup(file) is 'audio/mpeg'
-      res.sendfile file
-    # Transcode to mp3 using ffmpeg.
+    if err? or not file?
+      res.writeHead 500
+      res.end()
     else
-      new ffmpeg(path)
-        .withAudioCodec('libmp3lame')
-        .toFormat('mp3')
-        .writeToStream res, (ret, err) ->
-          console.log err if err?
+      res.contentType 'mp3'
+      if mime.lookup(file) is 'audio/mpeg'
+        res.sendfile file
+      # Transcode to mp3 using ffmpeg.
+      else
+        new ffmpeg(path)
+          .withAudioCodec('libmp3lame')
+          .toFormat('mp3')
+          .writeToStream res, (ret, err) ->
+            console.log err.message if err?

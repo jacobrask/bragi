@@ -5,8 +5,10 @@ fs = require 'fs'
 mime = require 'mime'
 path = require 'path'
 
+_ = require './utils'
+
 # Return non-hidden child directories of root as an array of objects.
-exports.getDirectories = (root, cb) ->
+getDirectories = exports.getDirectories = (root, cb) ->
   fs.readdir root, (err, files) ->
     async.filter files,
       (file, cb) ->
@@ -18,8 +20,19 @@ exports.getDirectories = (root, cb) ->
         cb null, ({ title: file, path: path.join(root, file) } for file in res)
 
 
+# Applies `iterator` to `root` and each of it decendant directories.
+traverse = exports.traverse = (root, iterator, cb) ->
+  iterator root, (err) ->
+    getDirectories root, (err, dirs) ->
+      async.forEachSeries dirs,
+        (dir, cb) ->
+          iterator dir.path, (err) ->
+            traverse dir.path, iterator, cb
+        (err) -> cb err
+
+
 # Return children as an object of arrays with files grouped by type.
-# Exlude files that aren't folders, audio, video or images.
+# Exlude files that aren't audio, video or images.
 exports.getSortedFiles = (root, cb) ->
   sortFiles = (dir, files, cb) ->
     sortedFiles = {}
@@ -27,14 +40,14 @@ exports.getSortedFiles = (root, cb) ->
       (file, cb) ->
         fullPath = path.join dir, file
         fs.stat fullPath, (err, stat) ->
-          type =
-            if stat?.isDirectory() then 'folder'
-            else if stat?.isFile() then mime.lookup(file).split('/')[0]
-            else 'unknown'
-          if type in [ 'folder', 'audio', 'video', 'image' ]
+          return cb null unless stat?.isFile()
+          type = mime.lookup(file).split('/')[0]
+          if type in [ 'audio', 'video', 'image' ]
             (sortedFiles[type]?=[]).push fullPath
           cb (if err? then err else null)
-      (err) -> cb err, sortedFiles
+      (err) ->
+        err = err ? new Error('No matching files') if _.isEmpty sortedFiles
+        cb err, sortedFiles
 
   fs.readdir root, (err, files) ->
     return cb err if err?

@@ -2,7 +2,7 @@
 
 socket = io.connect 'http://localhost'
 
-renderers = []
+renderers = {}
 renderView = (name, data, cb) ->
   return cb renderers[name] data if name of renderers
   $.get("/views/#{name}.jade").done (tmpl) ->

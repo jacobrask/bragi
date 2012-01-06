@@ -1,5 +1,8 @@
 "use strict"
 
+async = require 'async'
+
+media = require './media'
 _ = require './utils'
 
 { Db, Connection, Server, BSONPure: { ObjectID } } = require 'mongodb'
@@ -8,10 +11,19 @@ db = new Db 'bragi-mediaserver',
        new Server 'localhost',
        Connection.DEFAULT_PORT
 
-exports.connect = (cb = ->) ->
+exports.init = (cb = ->) ->
   db.open (err) ->
     return cb err if err?
-    db.dropDatabase cb
+    # Drop library and then rebuild it by scanning `paths`.
+    action 'library', cb, (coll) ->
+      coll.drop (err, res) ->
+        get 'paths', {}, (err, docs) ->
+          # Call back but continue adding media in the background.
+          cb err
+          if docs?.length > 0
+            async.forEachSeries docs.filter((doc) -> doc.path?),
+              (doc, cb) -> media.addPath doc.path, cb
+              (err) -> console.log err.message if err?
 
 action = (collName, errback, callback) ->
   db.collection collName, (err, coll) ->
@@ -24,7 +36,7 @@ add = (collName, obj, cb) -> action collName, cb, (coll) ->
 update = (collName, filter, updateAction, cb) -> action collName, cb, (coll) ->
   coll.update filter, updateAction, safe: true, cb
 
-get = (collName, filter = {}, cb) -> action collName, cb, (coll) ->
+get = exports.get = (collName, filter = {}, cb) -> action collName, cb, (coll) ->
   coll.find(filter).toArray cb
 
 getProperty = (filter, prop, cb) ->
