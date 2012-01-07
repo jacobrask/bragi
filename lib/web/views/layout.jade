@@ -2,7 +2,10 @@
 html
   head
     title Bragi Media Server
-  body!= body
+    link(href='/styles/index.css',rel='stylesheet')
+  body
+    #content
+      != body
     script(src='/socket.io/socket.io.js')
     script(src='/scripts/vendor/jquery.min.js')
     script(src='/scripts/vendor/jade.js')

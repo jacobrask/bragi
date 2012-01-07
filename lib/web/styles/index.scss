@@ -1,0 +1,45 @@
+* {
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: sans-serif;
+    background: #333 url('/graphics/background.png');
+    color: #ccc;
+}
+#content {
+    background: rgba(0, 0, 0, .5);
+    padding: 2%;
+    border-radius: 20px;
+    width: 90%;
+    margin: 0 auto;
+}
+#files {
+    ul {
+        padding: 0 5px;
+    }
+    ul ul {
+        padding: 0 20px;
+    }
+    li {
+        list-style: none;
+        padding: 5px 0;
+    }
+    a {
+        display: block;
+        position: relative;
+        overflow: hidden;
+        float: left;
+        width: 0;
+        height: 0;
+        top: 2px;
+        border: 5px solid transparent;
+        border-left-color: white;
+    }
+    a.open {
+        top: 5px;
+        left: -4px;
+        border-left-color: transparent;
+        border-top-color: white;
+    }
+}
