@@ -7,7 +7,7 @@ _ = require './utils'
 
 db = new Db 'bragi-mediaserver',
        new Server 'localhost',
-       Connection.DEFAULT_PORT
+         Connection.DEFAULT_PORT
 
 exports.init = (cb = ->) ->
   db.open (err) ->
@@ -31,7 +31,11 @@ action = (collName, errback, callback) ->
     callback coll
 
 add = (collName, obj, cb) -> action collName, cb, (coll) ->
-  coll.insert obj, safe: true, cb
+  obj2 = _.clone obj
+  coll.findAndModify obj2, [['_id', 'asc']], { $set: obj2 }, { safe: on, upsert: on, new: yes }, cb
+
+remove = (collName, obj, cb) -> action collName, cb, (coll) ->
+  coll.remove obj, cb
 
 update = (collName, filter, updateAction, cb) -> action collName, cb, (coll) ->
   coll.update filter, updateAction, safe: true, cb
@@ -47,6 +51,9 @@ getProperty = (filter, prop, cb) ->
 
 exports.addPath = (path, cb) ->
   add 'paths', { path }, cb
+
+exports.removePath = (path, cb) ->
+  remove 'paths', { path }, cb
 
 exports.getPath = (id, cb) ->
   getProperty { _id: new ObjectID id.toString() }, 'path', cb

@@ -42,6 +42,13 @@ io.sockets.on 'connection', (socket) ->
           media.addPath dir, cb
       (err) -> console.log err.message if err?
 
+  socket.on 'removePath', (root, cb) ->
+    files.traverse root,
+      (dir, cb) ->
+        db.removePath dir, cb
+      (err) -> console.log err.message if err?
+
+
 app.get '/', (req, res) ->
   getDirData '/', (err, dirs) ->
     res.render 'index', { dirs }
