@@ -13,10 +13,13 @@
   "dependencies": {
      "async": "*",
      "coffee-script": "*",
+     "express": "*",
      "jade": "*",
      "mime": "*",
+     "mongodb": "*",
      "musicmetadata": "*",
-     "optimist": "*",
+     "socket.io": "*",
+     "underscore": "*",
      "upnp-device": "*"
   },
   "licenses": [ {
