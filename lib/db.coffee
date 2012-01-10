@@ -5,7 +5,13 @@ _ = require './utils'
 
 { Db, Connection, Server, BSONPure: { ObjectID } } = require 'mongodb'
 
-db = new Db 'bragi-mediaserver',
+dbName =
+  if process.env.NODE_ENV is 'production'
+    'bragi-mediaserver'
+  else
+    'bragi-mediaserver-dev'
+
+db = new Db dbName,
        new Server 'localhost',
          Connection.DEFAULT_PORT
 
