@@ -16,7 +16,8 @@ ms = upnp.createDevice 'MediaServer', 'Bragi'
 
 addPath = exports.addPath = (root, cb) ->
   files.getSortedFiles root, (err, sortedFiles) ->
-    return cb err if err?
+    if err? or _.isEmpty sortedFiles
+      return cb err
     type = _.getBiggestArray sortedFiles
     add type, sortedFiles[type], cb
 

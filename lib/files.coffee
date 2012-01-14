@@ -45,7 +45,6 @@ exports.getSortedFiles = (root, cb) ->
             (sortedFiles[type]?=[]).push fullPath
           cb (if err? then err else null)
       (err) ->
-        err = err ? new Error('No matching files') if _.isEmpty sortedFiles
         cb err, sortedFiles
 
   fs.readdir root, (err, files) ->
