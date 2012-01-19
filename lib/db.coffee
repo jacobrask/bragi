@@ -1,85 +1,98 @@
 "use strict"
 
+{ EventEmitter } = require 'events'
+{ BSONPure: { ObjectID } } = require 'mongodb'
+
 media = require './media'
 _ = require './utils'
 
-{ Db, Connection, Server, BSONPure: { ObjectID } } = require 'mongodb'
+# Exports a "constructor" function for an object with a `database` prototype.
+module.exports = (db) -> Object.create database, db: { value: db }
 
-dbName =
-  if process.env.NODE_ENV is 'production'
-    'bragi-mediaserver'
-  else
-    'bragi-mediaserver-dev'
+database =
 
-db = new Db dbName,
-       new Server 'localhost',
-         Connection.DEFAULT_PORT
+  open: (cb) -> @db.open cb
 
-exports.init = (cb = ->) ->
-  db.open (err) ->
-    return cb err if err?
-    # Drop library and then rebuild it by scanning `paths`.
-    action 'library', cb, (coll) ->
-      coll.drop (err, res) ->
-        console.log err.message if err?
-        get 'paths', {}, (err, docs) ->
-          console.log err.message if err?
-          # Call back but continue adding media in the background.
-          cb err
-          if docs?.length > 0
-            _.async.forEachSeries docs.filter((doc) -> doc.path?),
-              (doc, cb) -> media.addPath doc.path, cb
-              (err) -> console.log err.message if err?
+  # Drop `library` collection, scan files in `paths` collection and add
+  # results to `library` collection.
+  syncPaths: (cb) ->
+    @db.collection 'library', (err, coll) =>
+      return cb err if err?
+      coll.drop =>
+        @forEach 'paths', {},
+          (doc, cb) =>
+            media.addPath @, doc.path, cb
+          cb
 
-action = (collName, errback, callback) ->
-  db.collection collName, (err, coll) ->
-    return errback err if err?
-    callback coll
+  # Applies `iter` to items in `collName` matching `filter`.
+  # Calls `cb` when done or on error.
+  forEach: (collName, filter = {}, iter, cb) ->
+    @find collName, filter, (err, cursor) ->
+      return cb err if err?
+      next = ->
+        cursor.nextObject (err, doc) ->
+          return cb err if err? or not doc?
+          iter doc, next
+      next()
 
-add = (collName, obj, cb) -> action collName, cb, (coll) ->
-  obj2 = _.clone obj
-  coll.findAndModify obj2, [['_id', 'asc']], { $set: obj2 }, { safe: on, upsert: on, new: yes }, cb
+  find: (collName, filter, cb) ->
+    @db.collection collName, (err, coll) ->
+      return cb err if err?
+      coll.find filter, cb
 
-remove = (collName, obj, cb) -> action collName, cb, (coll) ->
-  coll.remove obj, cb
+  # Insert object, or update if it exists.
+  upsert: (collName, obj, cb) ->
+    @db.collection collName, (err, coll) ->
+      obj2 = _.clone obj
+      coll.findAndModify obj2,
+        [['_id', 'asc']]
+        { $set: obj2 }
+        { safe: on, upsert: on, new: yes }
+        cb
 
-update = (collName, filter, updateAction, cb) -> action collName, cb, (coll) ->
-  coll.update filter, updateAction, safe: true, cb
+  remove: (collName, obj, cb) ->
+    @db.collection collName, (err, coll) ->
+      coll.remove obj, cb
 
-get = exports.get = (collName, filter = {}, cb) -> action collName, cb, (coll) ->
-  coll.find(filter).toArray cb
+  # Return true if collection has an object matching `obj`.
+  has: (collName, obj, cb) ->
+    @db.collection collName, (err, coll) ->
+      return cb err if err?
+      coll.count obj, (err, count) ->
+        cb err, count > 0
 
-getProperty = (filter, prop, cb) ->
-  action 'library', cb, (coll) ->
-    (o = {})[prop] = 1
-    coll.find(filter, o).toArray (err, obj) ->
-      cb err, obj?[0]?[prop]
+  # Get a single property from object with `id`.
+  getProperty: (collName, id, prop, cb) ->
+    @db.collection collName, (err, coll) ->
+      return cb err if err?
+      (o = {})[prop] = 1
+      coll.find({ _id: new ObjectID id.toString() }, o).limit(1).toArray (err, obj) ->
+        cb err, obj?[0]?[prop]
 
-exports.addPath = (path, cb) ->
-  add 'paths', { path }, cb
+  addPath: (path, cb) ->
+    @upsert 'paths', { path }, cb
 
-exports.removePath = (path, cb) ->
-  remove 'paths', { path }, cb
+  getPath: (id, cb) ->
+    @getProperty { _id: new ObjectID id.toString() }, 'path', cb
 
-exports.getPath = (id, cb) ->
-  getProperty { _id: new ObjectID id.toString() }, 'path', cb
+  removePath: (path, cb) ->
+    @remove 'paths', { path }, cb
 
-exports.getProperty = (id, prop, cb) ->
-  getProperty { _id: new ObjectID id.toString() }, prop, cb
+  hasPath: (path, cb) ->
+    @has 'paths', { path }, cb
 
-exports.addToLibrary = (obj, cb) ->
-  action 'library', cb, (coll) ->
-    obj2 = _.clone obj
-    coll.findAndModify obj2, [['_id', 'asc']], { $set: obj2 }, { safe: on, upsert: on, new: yes }, (err, doc) ->
+  # Add to library and return generated `_id`.
+  addToLibrary: (obj, cb) ->
+    @upsert 'library', obj, (err, doc) ->
       cb err, doc._id
 
-exports.set = (id, obj, cb) ->
-  update 'library', { _id: new ObjectID id.toString() }, { $set: obj }, cb
+  update: (collName, filter, updateAction, cb) ->
+    @db.collection collName, (err, coll) ->
+      return cb err if err?
+      coll.update filter, updateAction, safe: true, cb
 
-exports.push = (id, obj, cb) ->
-  update 'library', { _id: new ObjectID id.toString() }, { $push: obj }, cb
+  set: (id, obj, cb) ->
+    @update 'library', { _id: new ObjectID id.toString() }, { $set: obj }, cb
 
-exports.pathExists = (path, cb) ->
-  action 'paths', cb, (coll) ->
-    coll.count { path }, (err, count) ->
-      cb err, count > 0
+  push: (id, obj, cb) ->
+    @update 'library', { _id: new ObjectID id.toString() }, { $push: obj }, cb

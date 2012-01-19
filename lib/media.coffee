@@ -14,20 +14,20 @@ _     = require './utils'
 
 ms = upnp.createDevice 'MediaServer', 'Bragi'
 
-addPath = exports.addPath = (root, cb) ->
+addPath = exports.addPath = (db, root, cb) ->
   files.getSortedFiles root, (err, sortedFiles) ->
     return cb err if err?
     type = _.getBiggestArray sortedFiles
-    add type, sortedFiles[type], cb
+    add db, type, sortedFiles[type], cb
 
 
-add = (type, mediaFiles, cb) ->
+add = (db, type, mediaFiles, cb) ->
   if type is 'audio'
-    artist = new Artist mediaFiles
+    artist = new Artist db, mediaFiles
     artist.on 'added', ->
-      album = new Album mediaFiles, artist
+      album = new Album db, mediaFiles, artist
       album.on 'added', ->
-        new Track file, album for file in mediaFiles
+        new Track db, file, album for file in mediaFiles
         cb null
   else
     cb null
@@ -40,29 +40,28 @@ class MediaObject extends EventEmitter
   constructor: -> @
 
   addToLibrary: (cb) ->
-    obj = _.clone @upnpObject
-    db.addToLibrary obj, (err, @id) =>
+    @db.addToLibrary _.clone(@upnpObject), (err, @id) =>
       if err? then @emit 'error', err else cb()
 
   addToMediaServer: (cb) ->
-    db.getProperty @id, 'upnpId', (err, upnpId) =>
+    @db.getProperty 'library', @id, 'upnpId', (err, upnpId) =>
       if err? then return @emit 'error', err
       if upnpId?
         @upnpId = upnpId
         return cb null
       ms.addMedia @parent?.upnpId or 0, @upnpObject, (err, @upnpId) =>
         if err? then return @emit 'error', err
-        db.set @id, { upnpId: @upnpId }, (err) =>
+        @db.set @id, { upnpId: @upnpId }, (err) =>
           if err? then @emit 'error', err else cb()
 
   addAsChild: (cb) ->
-    db.push @parent.id, { children: @id }, (err) =>
+    @db.push @parent.id, { children: @id }, (err) =>
       if err? then @emit 'error', err else cb()
 
 
 class Artist extends MediaObject
 
-  constructor: (@files) ->
+  constructor: (@db, @files) ->
     @makeUpnpObject =>
       @addToLibrary =>
         @addToMediaServer =>
@@ -78,7 +77,7 @@ class Artist extends MediaObject
 
 class Album extends MediaObject
 
-  constructor: (@files, @parent) ->
+  constructor: (@db, @files, @parent) ->
     @makeUpnpObject =>
       @addToLibrary =>
         @addToMediaServer =>
@@ -96,7 +95,7 @@ class Album extends MediaObject
 
 class Track extends MediaObject
 
-  constructor: (@file, @parent) ->
+  constructor: (@db, @file, @parent) ->
     @makeUpnpObject =>
       @upnpObject.path = @file
       @addToLibrary =>
