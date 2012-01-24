@@ -16,7 +16,7 @@ Then clone this repository and run `node bragi.js`. Bragi will be published in n
 
 * Only gets metadata from audio files.
 * When paths are removed, Bragi needs to be restarted for changes to take effect.
-* No settings for transcoding.
+* Transcoding only for audio.
 * UI under construction.
 
 [upnp]: http://upnp.org
