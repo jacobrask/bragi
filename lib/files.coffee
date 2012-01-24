@@ -6,6 +6,8 @@ path = require 'path'
 
 _ = require './utils'
 
+mime.define 'audio/flac': ['flac']
+
 # Return non-hidden child directories of root as an array of objects.
 getDirectories = exports.getDirectories = (root, cb) ->
   fs.readdir root, (err, files) ->

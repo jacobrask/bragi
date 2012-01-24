@@ -1,6 +1,7 @@
 "use strict"
 
 express = require 'express'
+ffmpeg = require 'fluent-ffmpeg'
 mime = require 'mime'
 socketio = require 'socket.io'
 { Db, Connection, Server, BSONPure: { ObjectID } } = require 'mongodb'
@@ -44,11 +45,11 @@ db.open (err) ->
           res.sendfile file
         # Transcode to mp3 using ffmpeg.
         else
-          new ffmpeg(path)
+          new ffmpeg(file)
             .withAudioCodec('libmp3lame')
             .toFormat('mp3')
             .writeToStream res, (ret, err) ->
-              console.log err.message if err?
+              console.log "Unknown ffmpeg warning" if err?
 
   io.sockets.on 'connection', (socket) ->
     socket.on 'getDirectories', (root, cb) ->
