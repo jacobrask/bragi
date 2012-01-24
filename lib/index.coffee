@@ -10,7 +10,7 @@ media = require './media'
 _ = require './utils'
 
 db = require('./db') new Db(
-  "bragi-mediaserver#{'-dev' unless process.env.NODE_ENV is 'production'}"
+  "bragi-mediaserver#{if process.env.NODE_ENV is 'production' then '' else '-dev'}"
   new Server 'localhost', Connection.DEFAULT_PORT)
 
 db.open (err) ->
@@ -79,6 +79,6 @@ db.open (err) ->
             cb null, dir
         cb
 
-  app.listen 3001
+  app.listen 3000
 
   console.log "Bragi web interface started at http://localhost:#{app.address().port}"

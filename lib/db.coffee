@@ -73,7 +73,7 @@ database =
     @upsert 'paths', { path }, cb
 
   getPath: (id, cb) ->
-    @getProperty { _id: new ObjectID id.toString() }, 'path', cb
+    @getProperty 'library', id, 'path', cb
 
   removePath: (path, cb) ->
     @remove 'paths', { path }, cb
