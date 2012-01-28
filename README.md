@@ -6,9 +6,7 @@ ___Bragi is still in a very experimental state.___
 
 # Install
 
-First install [Node.js], version 0.4.12 is recommended. Bragi relies on [node-upnp-device] which is ___not___ compatible with Node 0.6.x due to some missing UDP features in 0.6.x. They are expected to be implemented fairly soon, and then node-upnp-device will be ported to 0.6.x. I suggest using [nvm] to install and keep track of different Node versions.
-
-You also need to install [MongoDB], and if you want transcoding, [ffmpeg].
+Apart from [Node.js], you first need to install [MongoDB], and if you want transcoding, [ffmpeg].
 
 Then clone this repository and run `node bragi.js`. Bragi will be published in npm when it's more functional.
 

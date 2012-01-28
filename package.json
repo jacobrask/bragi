@@ -9,7 +9,6 @@
   "bin": "./bragi.js",
   "main": "./bragi.js",
   "directories": { "lib": "./lib" },
-  "engines": { "node": "<= 0.4.12" },
   "dependencies": {
      "async": "*",
      "coffee-script": "*",
